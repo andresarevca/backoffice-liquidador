@@ -1,0 +1,14 @@
+services:
+
+  backoffice:
+    build: .
+    container_name: liquidador_backoffice
+    ports:
+      - "3001:80"
+    restart: unless-stopped
+    networks:
+      - backend-liquidador_backend_liquidador_network
+
+networks:
+  backend-liquidador_backend_liquidador_network:
+    external: true
