@@ -1,0 +1,12 @@
+services:
+
+  backoffice:
+    image: ghcr.io/andresarevca/backoffice-liquidador:latest
+    container_name: liquidador_backoffice
+    restart: unless-stopped
+    networks:
+      - backend-liquidador_backend_liquidador_network
+
+networks:
+  backend-liquidador_backend_liquidador_network:
+    external: true
