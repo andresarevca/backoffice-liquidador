@@ -3,6 +3,8 @@ import type {
   AdminUsuario,
   AdminUsuarioInput,
   CorreoRechazado,
+  FuentesCorpus,
+  IndexarPdfResponse,
   Metricas,
   UserProfile,
 } from '../types'
@@ -74,6 +76,22 @@ async function requestList<T>(path: string): Promise<T[]> {
   return results
 }
 
+async function requestUpload<T>(path: string, formData: FormData, _retried = false): Promise<T> {
+  const res = await fetch(`/api${path}`, { method: 'POST', body: formData, headers: authHeaders() })
+
+  if (res.status === 401 && !_retried && (await tryRefresh())) {
+    return requestUpload<T>(path, formData, true)
+  }
+  if (res.status === 401) {
+    clearTokens()
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(text || `${res.status} ${res.statusText}`)
+  }
+  return res.json() as Promise<T>
+}
+
 function json(body: unknown): RequestInit {
   return { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
 }
@@ -110,4 +128,16 @@ export const api = {
   correosRechazados: () => requestList<CorreoRechazado>('/admin/correos-rechazados/'),
 
   metricas: () => request<Metricas>('/admin/metricas/'),
+
+  corpusFuentes: () => request<FuentesCorpus>('/admin/corpus/fuentes/'),
+  corpusEliminar: (fuente: string) =>
+    request<{ chunks_eliminados: number }>(`/admin/corpus/fuente/?fuente=${encodeURIComponent(fuente)}`, {
+      method: 'DELETE',
+    }),
+  corpusIndexar: (archivo: File, municipio: string) => {
+    const formData = new FormData()
+    formData.append('archivo', archivo)
+    formData.append('municipio', municipio)
+    return requestUpload<IndexarPdfResponse>('/admin/corpus/indexar-pdf/', formData)
+  },
 }
