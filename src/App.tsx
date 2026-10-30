@@ -5,6 +5,7 @@ import { AuthPage } from './pages/AuthPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { UsuariosPage } from './pages/UsuariosPage'
 import { CasosPage } from './pages/CasosPage'
+import { CorpusLegalPage } from './pages/CorpusLegalPage'
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/usuarios" element={<UsuariosPage />} />
           <Route path="/casos" element={<CasosPage />} />
+          <Route path="/corpus" element={<CorpusLegalPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
