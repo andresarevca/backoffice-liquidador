@@ -71,3 +71,16 @@ export interface Metricas {
   top_usuarios: TopUsuario[]
   correos_rechazados_30d: number
 }
+
+export interface FuentesCorpus {
+  fuentes: string[]
+  fuentes_propias: string[]
+  total_chunks: number
+  total_casos_historicos: number
+}
+
+export interface IndexarPdfResponse {
+  titulo: string
+  chunks_indexados: number
+  municipio: string
+}
