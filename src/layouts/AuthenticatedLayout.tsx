@@ -20,11 +20,11 @@ export function AuthenticatedLayout() {
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-muted/30">
         <AppSidebar />
-        <div className="flex flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-10 flex h-12 items-center justify-between gap-2 border-b bg-background/80 px-3 backdrop-blur">
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               <SidebarTrigger />
-              <span className="text-sm font-medium text-muted-foreground">
+              <span className="truncate text-sm font-medium text-muted-foreground">
                 Backoffice Liquidador — Gestión y métricas
               </span>
             </div>

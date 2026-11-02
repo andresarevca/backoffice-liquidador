@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { api } from '@/api/client'
+import { ErrorState } from '@/components/ErrorState'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -19,7 +20,10 @@ export function CorpusLegalPage() {
   const cargarFuentes = () => {
     api
       .corpusFuentes()
-      .then(setFuentes)
+      .then((data) => {
+        setFuentes(data)
+        setFuentesError(null)
+      })
       .catch((e: Error) => setFuentesError(e.message))
   }
 
@@ -41,7 +45,7 @@ export function CorpusLegalPage() {
     e.preventDefault()
     const archivo = fileInputRef.current?.files?.[0]
     if (!archivo) {
-      setSubidaError('Seleccioná un archivo PDF o DOCX.')
+      setSubidaError('Selecciona un archivo PDF o DOCX.')
       return
     }
     setSubiendo(true)
@@ -60,7 +64,7 @@ export function CorpusLegalPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-8">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Corpus Legal Global</h1>
         <p className="text-sm text-muted-foreground">
@@ -73,11 +77,11 @@ export function CorpusLegalPage() {
         <Card className="p-4 lg:col-span-2">
           <h2 className="mb-3 text-sm font-semibold">Documentos globales</h2>
           {fuentesError ? (
-            <p className="text-sm text-red-600 dark:text-red-400">{fuentesError}</p>
+            <ErrorState message={fuentesError} onRetry={cargarFuentes} />
           ) : !fuentes ? (
             <p className="text-sm text-muted-foreground">Cargando...</p>
           ) : fuentes.fuentes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Todavía no hay documentos globales.</p>
+            <p className="text-sm text-muted-foreground">Aún no hay documentos globales. Sube un PDF o DOCX desde el panel de la derecha.</p>
           ) : (
             <>
               <p className="mb-3 text-sm text-muted-foreground">
