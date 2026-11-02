@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Users, FolderKanban, AlertTriangle, MailWarning, Clock } from 'lucide-react'
 
 import { api } from '@/api/client'
+import { ErrorState } from '@/components/ErrorState'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import type { Metricas } from '@/types'
+import { ESTADO_LABELS, type EstadoCarpeta, type Metricas } from '@/types'
 
 function formatDuracion(segundos: number | null) {
   if (segundos == null) return '—'
@@ -17,13 +18,29 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const [intento, setIntento] = useState(0)
+
   useEffect(() => {
+    let cancelled = false
     api
       .metricas()
-      .then(setMetricas)
-      .catch((e: Error) => setError(e.message))
-      .finally(() => setLoading(false))
-  }, [])
+      .then((m) => {
+        if (cancelled) return
+        setMetricas(m)
+        setError(null)
+      })
+      .catch((e: Error) => !cancelled && setError(e.message))
+      .finally(() => !cancelled && setLoading(false))
+    return () => {
+      cancelled = true
+    }
+  }, [intento])
+
+  const reintentar = () => {
+    setLoading(true)
+    setError(null)
+    setIntento((n) => n + 1)
+  }
 
   const kpis = useMemo(() => {
     if (!metricas) return []
@@ -57,16 +74,14 @@ export function DashboardPage() {
   )
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-8">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
         <p className="text-sm text-muted-foreground">Métricas de uso de la aplicación.</p>
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
-          {error}
-        </div>
+        <ErrorState message={error} onRetry={reintentar} />
       ) : (
         <>
           <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
@@ -113,7 +128,7 @@ export function DashboardPage() {
                 ) : (
                   Object.entries(metricas.carpetas_por_estado).map(([estado, total]) => (
                     <div key={estado} className="flex items-center gap-3 text-sm">
-                      <span className="w-28 shrink-0 text-muted-foreground">{estado}</span>
+                      <span className="w-28 shrink-0 text-muted-foreground">{ESTADO_LABELS[estado as EstadoCarpeta] ?? estado}</span>
                       <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
                         <div
                           className="h-full rounded-full bg-primary"
@@ -156,8 +171,8 @@ export function DashboardPage() {
             <CardHeader>
               <CardTitle className="text-base">Top usuarios por volumen de casos</CardTitle>
             </CardHeader>
-            <CardContent className="p-0">
-              <table className="w-full text-sm">
+            <CardContent className="overflow-x-auto p-0">
+              <table className="w-full min-w-[560px] text-sm">
                 <thead className="border-b bg-muted/40">
                   <tr>
                     {['Usuario', 'Email', 'Casos'].map((h) => (

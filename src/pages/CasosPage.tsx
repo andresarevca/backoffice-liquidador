@@ -1,6 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
+import { FolderOpen } from 'lucide-react'
 
 import { api } from '@/api/client'
+import { EmptyState } from '@/components/EmptyState'
+import { ErrorState } from '@/components/ErrorState'
+import { Pagination } from '@/components/Pagination'
+import { StatusBadge } from '@/components/StatusBadge'
+import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
@@ -10,8 +16,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { StatusBadge } from '@/components/StatusBadge'
+import { usePagedList } from '@/hooks/use-paged-list'
 import type { AdminCarpeta, EstadoCarpeta } from '@/types'
+
+const POLL_MS = 8000
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('es-AR', {
@@ -21,37 +29,32 @@ function formatDate(iso: string) {
   })
 }
 
+const enCurso = (items: AdminCarpeta[]) =>
+  items.some((c) => c.estado === 'PROCESANDO' || c.estado === 'RECIBIDA')
+
+function SinAsignar() {
+  return <span className="italic text-red-600 dark:text-red-400">sin asignar</span>
+}
+
 export function CasosPage() {
-  const [carpetas, setCarpetas] = useState<AdminCarpeta[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [estado, setEstado] = useState<EstadoCarpeta | 'ALL'>('ALL')
 
-  useEffect(() => {
-    api
-      .carpetas()
-      .then(setCarpetas)
-      .catch((e: Error) => setError(e.message))
-      .finally(() => setLoading(false))
-  }, [])
+  const { items, count, page, setPage, pageCount, loading, firstLoad, error, reload } =
+    usePagedList<AdminCarpeta>(
+      api.carpetasPage,
+      { search, estado: estado === 'ALL' ? undefined : estado },
+      { pollMs: POLL_MS, shouldPoll: enCurso },
+    )
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase()
-    return carpetas.filter((c) => {
-      const matchSearch =
-        !q ||
-        c.caso_id.toLowerCase().includes(q) ||
-        c.email_remitente.toLowerCase().includes(q) ||
-        c.email_asunto.toLowerCase().includes(q) ||
-        (c.usuario_email ?? '').toLowerCase().includes(q)
-      const matchEstado = estado === 'ALL' || c.estado === estado
-      return matchSearch && matchEstado
-    })
-  }, [carpetas, search, estado])
+  const hayFiltros = search.trim() !== '' || estado !== 'ALL'
+  const limpiarFiltros = () => {
+    setSearch('')
+    setEstado('ALL')
+  }
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-8">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Casos</h1>
         <p className="text-sm text-muted-foreground">
@@ -79,50 +82,72 @@ export function CasosPage() {
           </SelectContent>
         </Select>
         <span className="whitespace-nowrap text-xs text-muted-foreground">
-          {loading ? '—' : `${filtered.length} de ${carpetas.length} casos`}
+          {firstLoad ? '—' : `${count} caso${count === 1 ? '' : 's'}`}
         </span>
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
-          {error}
-        </div>
+        <ErrorState message={error} onRetry={reload} />
+      ) : firstLoad ? (
+        <Card className="px-4 py-12 text-center text-sm text-muted-foreground">Cargando casos...</Card>
+      ) : items.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={FolderOpen}
+            title={hayFiltros ? 'No se encontraron casos' : 'Aún no hay casos'}
+            description={
+              hayFiltros
+                ? 'Prueba con otra búsqueda o quita los filtros.'
+                : 'Los casos aparecen cuando llega un correo con la documentación del siniestro.'
+            }
+            action={
+              <Button variant="outline" size="sm" onClick={hayFiltros ? limpiarFiltros : reload}>
+                {hayFiltros ? 'Limpiar filtros' : 'Actualizar'}
+              </Button>
+            }
+          />
+        </Card>
       ) : (
-        <Card className="overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="border-b bg-muted/40">
-              <tr>
-                {['Caso ID', 'Usuario', 'Remitente', 'Estado', 'Docs', 'Recibida'].map((h) => (
-                  <th
-                    key={h}
-                    className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {loading ? (
+        <div className={loading ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
+          {/* Móvil: tarjetas */}
+          <ul className="space-y-3 md:hidden">
+            {items.map((c) => (
+              <li key={c.id} className="rounded-lg border bg-card p-4 shadow-sm">
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <span className="break-all font-mono text-sm font-semibold">{c.caso_id}</span>
+                  <StatusBadge estado={c.estado} />
+                </div>
+                <p className="line-clamp-2 text-sm">{c.email_asunto}</p>
+                <p className="mt-1 truncate text-xs text-muted-foreground">{c.email_remitente}</p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {c.usuario_nombre ?? <SinAsignar />} · {c.total_documentos} doc
+                  {c.total_documentos === 1 ? '' : 's'} · {formatDate(c.recibida_en)}
+                </p>
+              </li>
+            ))}
+          </ul>
+
+          {/* Escritorio: tabla */}
+          <Card className="hidden overflow-x-auto md:block">
+            <table className="w-full text-sm">
+              <thead className="border-b bg-muted/40">
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
-                    Cargando casos...
-                  </td>
+                  {['Caso ID', 'Usuario', 'Remitente', 'Estado', 'Docs', 'Recibida'].map((h) => (
+                    <th
+                      key={h}
+                      className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"
+                    >
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
-                    No se encontraron casos.
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((c) => (
+              </thead>
+              <tbody className="divide-y">
+                {items.map((c) => (
                   <tr key={c.id} className="hover:bg-muted/30">
                     <td className="px-4 py-3 font-mono text-xs font-semibold">{c.caso_id}</td>
                     <td className="max-w-[200px] truncate px-4 py-3 text-muted-foreground">
-                      {c.usuario_nombre ?? (
-                        <span className="italic text-red-600 dark:text-red-400">sin asignar</span>
-                      )}
+                      {c.usuario_nombre ?? <SinAsignar />}
                     </td>
                     <td className="max-w-[200px] truncate px-4 py-3 text-muted-foreground">
                       {c.email_remitente}
@@ -130,18 +155,25 @@ export function CasosPage() {
                     <td className="px-4 py-3">
                       <StatusBadge estado={c.estado} />
                     </td>
-                    <td className="px-4 py-3 text-center text-muted-foreground">
-                      {c.total_documentos}
-                    </td>
+                    <td className="px-4 py-3 text-center text-muted-foreground">{c.total_documentos}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
                       {formatDate(c.recibida_en)}
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </Card>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+
+          <Pagination
+            page={page}
+            pageCount={pageCount}
+            count={count}
+            noun="casos"
+            disabled={loading}
+            onPage={setPage}
+          />
+        </div>
       )}
     </div>
   )

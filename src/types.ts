@@ -1,5 +1,12 @@
 export type EstadoCarpeta = 'RECIBIDA' | 'PROCESANDO' | 'COMPLETADA' | 'ERROR'
 
+export const ESTADO_LABELS: Record<EstadoCarpeta, string> = {
+  RECIBIDA: 'Recibida',
+  PROCESANDO: 'Procesando',
+  COMPLETADA: 'Completada',
+  ERROR: 'Error',
+}
+
 export interface UserProfile {
   email: string
   nombre: string
@@ -83,4 +90,18 @@ export interface IndexarPdfResponse {
   titulo: string
   chunks_indexados: number
   municipio: string
+}
+
+export interface Page<T> {
+  count: number
+  next: string | null
+  previous: string | null
+  results: T[]
+}
+
+export interface ListParams {
+  page?: number
+  search?: string
+  estado?: string
+  page_size?: number
 }
