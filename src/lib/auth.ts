@@ -82,7 +82,7 @@ export function useAuth() {
       const profile = await api.me()
       if (profile.rol !== 'Admin') {
         api.logout()
-        throw new Error('No tenés permisos de administrador para acceder al backoffice.')
+        throw new Error('No tienes permisos de administrador para acceder al backoffice.')
       }
       setCachedUser(profile)
       setUser(profile)

@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 
+import { Users } from 'lucide-react'
+
 import { api } from '@/api/client'
+import { EmptyState } from '@/components/EmptyState'
+import { ErrorState } from '@/components/ErrorState'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -36,7 +40,10 @@ export function UsuariosPage() {
     setLoading(true)
     api
       .usuarios()
-      .then(setUsuarios)
+      .then((data) => {
+        setUsuarios(data)
+        setError(null)
+      })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false))
   }
@@ -94,7 +101,7 @@ export function UsuariosPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 px-6 py-8">
+    <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Usuarios</h1>
         <p className="text-sm text-muted-foreground">Alta, edición y baja de usuarios del sistema.</p>
@@ -111,64 +118,103 @@ export function UsuariosPage() {
         </CardHeader>
         <CardContent className="p-0">
           {error && (
-            <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
-              {error}
+            <div className="m-4">
+              <ErrorState message={error} onRetry={cargar} />
             </div>
           )}
-          <table className="w-full text-sm">
-            <thead className="border-b bg-muted/40">
-              <tr>
-                {['Nombre', 'Email', 'Rol', 'Estado', 'Casos', 'Alta', ''].map((h) => (
-                  <th
-                    key={h}
-                    className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {loading ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
-                    Cargando usuarios...
-                  </td>
-                </tr>
-              ) : usuarios.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
-                    No hay usuarios registrados.
-                  </td>
-                </tr>
-              ) : (
-                usuarios.map((u) => (
-                  <tr key={u.id} className="hover:bg-muted/30">
-                    <td className="px-4 py-3 font-medium">{u.nombre}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{u.email}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{u.is_staff ? 'Admin' : 'Liquidador'}</td>
-                    <td className="px-4 py-3">
-                      <span className={u.is_active ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}>
+          {loading ? (
+            <p className="px-4 py-12 text-center text-sm text-muted-foreground">Cargando usuarios...</p>
+          ) : usuarios.length === 0 && !error ? (
+            <EmptyState
+              icon={Users}
+              title="No hay usuarios registrados"
+              description="Crea el primer usuario para que pueda recibir casos."
+              action={
+                <Button size="sm" onClick={abrirCrear}>
+                  Nuevo usuario
+                </Button>
+              }
+            />
+          ) : (
+            <>
+              {/* Móvil: tarjetas */}
+              <ul className="divide-y md:hidden">
+                {usuarios.map((u) => (
+                  <li key={u.id} className="space-y-2 p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{u.nombre}</p>
+                        <p className="truncate text-xs text-muted-foreground">{u.email}</p>
+                      </div>
+                      <span
+                        className={`shrink-0 text-xs font-medium ${
+                          u.is_active ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'
+                        }`}
+                      >
                         {u.is_active ? 'Activo' : 'Inactivo'}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-center text-muted-foreground">{u.carpetas_count}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
-                      {formatDate(u.date_joined)}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Button size="sm" variant="ghost" onClick={() => abrirEditar(u)}>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {u.is_staff ? 'Admin' : 'Liquidador'} · {u.carpetas_count} caso
+                      {u.carpetas_count === 1 ? '' : 's'} · Alta {formatDate(u.date_joined)}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="flex-1" onClick={() => abrirEditar(u)}>
                         Editar
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => onEliminar(u)}>
+                      <Button size="sm" variant="outline" className="flex-1" onClick={() => onEliminar(u)}>
                         Eliminar
                       </Button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+
+              {/* Escritorio: tabla */}
+              <div className="hidden overflow-x-auto md:block">
+                <table className="w-full text-sm">
+                  <thead className="border-b bg-muted/40">
+                    <tr>
+                      {['Nombre', 'Email', 'Rol', 'Estado', 'Casos', 'Alta', ''].map((h) => (
+                        <th
+                          key={h}
+                          className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {usuarios.map((u) => (
+                      <tr key={u.id} className="hover:bg-muted/30">
+                        <td className="px-4 py-3 font-medium">{u.nombre}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{u.email}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{u.is_staff ? 'Admin' : 'Liquidador'}</td>
+                        <td className="px-4 py-3">
+                          <span className={u.is_active ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}>
+                            {u.is_active ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center text-muted-foreground">{u.carpetas_count}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
+                          {formatDate(u.date_joined)}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Button size="sm" variant="ghost" onClick={() => abrirEditar(u)}>
+                            Editar
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => onEliminar(u)}>
+                            Eliminar
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 

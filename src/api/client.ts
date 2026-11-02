@@ -5,7 +5,9 @@ import type {
   CorreoRechazado,
   FuentesCorpus,
   IndexarPdfResponse,
+  ListParams,
   Metricas,
+  Page,
   UserProfile,
 } from '../types'
 import { clearTokens, getAccessToken, getRefreshToken, setAccessToken, setTokens } from '../lib/tokens'
@@ -43,6 +45,30 @@ function authHeaders(extra?: HeadersInit): Headers {
   return headers
 }
 
+// El backend devuelve errores como JSON de DRF ({"detail": "..."} o {"campo": ["..."]}).
+// Los convertimos a una frase legible en lugar de mostrar el cuerpo crudo.
+async function errorMessage(res: Response): Promise<string> {
+  const generico = `Error ${res.status}${res.statusText ? ` (${res.statusText})` : ''}. Intenta nuevamente.`
+  const text = await res.text().catch(() => '')
+  if (!text) return generico
+  try {
+    const data = JSON.parse(text) as unknown
+    const partes: string[] = []
+    const recolectar = (v: unknown, campo?: string) => {
+      if (typeof v === 'string') {
+        const etiqueta = campo && campo !== 'detail' && campo !== 'non_field_errors' ? campo.replace(/_/g, ' ') : ''
+        partes.push(etiqueta ? `${etiqueta}: ${v}` : v)
+      } else if (Array.isArray(v)) v.forEach((x) => recolectar(x, campo))
+      else if (v && typeof v === 'object')
+        Object.entries(v as Record<string, unknown>).forEach(([k, x]) => recolectar(x, k))
+    }
+    recolectar(data)
+    return partes.length ? partes.join(' ') : generico
+  } catch {
+    return text.trimStart().startsWith('<') || text.length > 300 ? generico : text
+  }
+}
+
 async function request<T>(path: string, options?: RequestInit, _retried = false): Promise<T> {
   const res = await fetch(`/api${path}`, { ...options, headers: authHeaders(options?.headers) })
 
@@ -55,11 +81,23 @@ async function request<T>(path: string, options?: RequestInit, _retried = false)
   }
 
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(text || `${res.status} ${res.statusText}`)
+    throw new Error(await errorMessage(res))
   }
   if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
+}
+
+function withQuery(path: string, params: Record<string, string | number | undefined | null> = {}) {
+  const q = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '') q.set(k, String(v))
+  })
+  const qs = q.toString()
+  return qs ? `${path}${path.includes('?') ? '&' : '?'}${qs}` : path
+}
+
+function requestPage<T>(path: string, params?: ListParams) {
+  return request<Page<T>>(withQuery(path, { ...params }))
 }
 
 async function requestList<T>(path: string): Promise<T[]> {
@@ -86,8 +124,7 @@ async function requestUpload<T>(path: string, formData: FormData, _retried = fal
     clearTokens()
   }
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(text || `${res.status} ${res.statusText}`)
+    throw new Error(await errorMessage(res))
   }
   return res.json() as Promise<T>
 }
@@ -121,8 +158,7 @@ export const api = {
   eliminarUsuario: (id: number) =>
     request<void>(`/admin/usuarios/${id}/`, { method: 'DELETE' }),
 
-  carpetas: (usuarioId?: number) =>
-    requestList<AdminCarpeta>(`/admin/carpetas/${usuarioId ? `?usuario=${usuarioId}` : ''}`),
+  carpetasPage: (params?: ListParams) => requestPage<AdminCarpeta>('/admin/carpetas/', params),
   carpeta: (id: string) => request<AdminCarpeta>(`/admin/carpetas/${id}/`),
 
   correosRechazados: () => requestList<CorreoRechazado>('/admin/correos-rechazados/'),
